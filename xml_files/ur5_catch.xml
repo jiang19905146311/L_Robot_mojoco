@@ -1,0 +1,199 @@
+<mujoco model="ur5">
+  <!-- 编译器配置：弧度制，网格文件目录，自动计算关节限位 -->
+  <compiler angle="radian" meshdir="assets" autolimits="true"/>
+  
+  <!-- 仿真选项：使用快速隐式积分器 -->
+  <option integrator="implicitfast"/>
+
+  <!-- 默认设置 -->
+  <default>
+    <default class="ur5">
+      <!-- 材质 -->
+      <material specular="0.5" shininess="0.25"/>
+      
+      <!-- 关节默认：绕Y轴，范围±2π，惯性0.1，物理阻尼5 -->
+      <joint axis="0 1 0" range="-6.28319 6.28319" armature="0.1" damping="5"/>
+      
+      <!-- 执行器参数：PID控制器参数 
+              增益类型：固定
+              偏置类型：仿射
+              控制量范围：-2pi～2pi
+              比例增益 = 2000 
+              偏置参数(I增益, D增益, 偏置) ="0 -2000 -400"
+              力矩/力输出范围
+      -->
+      <general gaintype="fixed" biastype="affine" ctrlrange="-6.2831 6.2831" gainprm="2000" biasprm="0 -2000 -400" forcerange="-150 150"/>
+        
+      <default class="size3">
+        <default class="size3_limited">
+          <joint range="-3.1415 3.1415"/>  
+          <general ctrlrange="-3.1415 3.1415"/>
+        </default>
+      </default>
+      <default class="size1">
+        <general gainprm="500" biasprm="0 -500 -100" forcerange="-28 28"/> 
+      </default>
+      <default class="visual">
+        <geom type="mesh" contype="0" conaffinity="0" group="2"/>
+      </default>
+      <default class="collision">
+        <geom type="capsule" group="3"/>
+        <default class="eef_collision">
+          <geom type="cylinder"/>
+        </default>
+      </default>
+      <site size="0.001" rgba="0.5 0.5 0.5 0.3" group="4"/>
+    </default>
+  </default>
+
+  <!-- 资产定义 -->
+  <asset>
+    <!-- 定义材料颜色 -->
+    <material class="ur5" name="black" rgba="0.033 0.033 0.033 1"/>
+    <material class="ur5" name="jointgray" rgba="0.278 0.278 0.278 1"/>
+    <material class="ur5" name="linkgray" rgba="0.82 0.82 0.82 1"/>
+    <material class="ur5" name="urblue" rgba="0.49 0.678 0.8 1"/>
+    
+    <!-- 导入OBJ网格文件 -->
+    <mesh file="base_0.obj"/>
+    <mesh file="base_1.obj"/>
+    <mesh file="shoulder_0.obj"/>
+    <mesh file="shoulder_1.obj"/>
+    <mesh file="shoulder_2.obj"/>
+    <mesh file="upperarm_0.obj"/>
+    <mesh file="upperarm_1.obj"/>
+    <mesh file="upperarm_2.obj"/>
+    <mesh file="upperarm_3.obj"/>
+    <mesh file="forearm_0.obj"/>
+    <mesh file="forearm_1.obj"/>
+    <mesh file="forearm_2.obj"/>
+    <mesh file="forearm_3.obj"/>
+    <mesh file="wrist1_0.obj"/>
+    <mesh file="wrist1_1.obj"/>
+    <mesh file="wrist1_2.obj"/>
+    <mesh file="wrist2_0.obj"/>
+    <mesh file="wrist2_1.obj"/>
+    <mesh file="wrist2_2.obj"/>
+    <mesh file="wrist3.obj"/>
+  </asset>
+
+  <!-- 世界结构 -->
+  <worldbody>
+    <light name="spotlight" mode="targetbodycom" target="wrist_2_link" pos="0 -1 2"/>
+    <body name="base" quat="0 0 0 -1" childclass="ur5">
+      <!-- mass质量，pos质心，diaginertia转动惯量 -->
+      <inertial mass="4.0" pos="0 0 0" diaginertia="0.00443333156 0.00443333156 0.0072"/>
+      <geom mesh="base_0" material="black" class="visual"/>
+      <geom mesh="base_1" material="jointgray" class="visual"/>
+      
+      <body name="shoulder_link" pos="0 0 0.089159">
+        <inertial mass="3.7" pos="0.0 -0.00193 -0.02561" diaginertia="0.01497235833 0.01497235833 0.01040625"/>
+        <joint name="shoulder_pan_joint" class="size3" axis="0 0 1"/>
+        <geom mesh="shoulder_0" material="urblue" class="visual"/>
+        <geom mesh="shoulder_1" material="black" class="visual"/>
+        <geom mesh="shoulder_2" material="jointgray" class="visual"/>
+        <geom class="collision" size="0.06 0.06" pos="0 0 -0.04"/>
+        
+        <body name="upper_arm_link" pos="0 0.138 0" quat="1 0 1 0">
+          <inertial mass="8.3930" pos="-0.2125 0.0 0.11336" diaginertia="0.13388583542 0.13388583542 0.0151074"/>
+          <joint name="shoulder_lift_joint" class="size3"/>
+          <geom mesh="upperarm_0" material="linkgray" class="visual"/>
+          <geom mesh="upperarm_1" material="black" class="visual"/>
+          <geom mesh="upperarm_2" material="jointgray" class="visual"/>
+          <geom mesh="upperarm_3" material="urblue" class="visual"/>
+          <geom class="collision" pos="0 -0.04 0" quat="1 1 0 0" size="0.054 0.06"/>
+          <geom class="collision" size="0.054 0.2" pos="0 0 0.2"/>
+          
+          <body name="forearm_link" pos="0 -0.131 0.425">
+            <inertial mass="2.33" pos="-0.24225 0.0 0.0265" diaginertia="0.03121680352 0.03121680352 0.004095"/>
+            <joint name="elbow_joint" class="size3_limited"/>
+            <geom mesh="forearm_0" material="urblue" class="visual"/>
+            <geom mesh="forearm_1" material="linkgray" class="visual"/>
+            <geom mesh="forearm_2" material="black" class="visual"/>
+            <geom mesh="forearm_3" material="jointgray" class="visual"/>
+            <geom class="collision" pos="0 0.08 0" quat="1 1 0 0" size="0.040 0.06"/>
+            <geom class="collision" size="0.040 0.19" pos="0 0 0.2"/>
+            
+            <body name="wrist_1_link" pos="0 0 0.392" quat="1 0 1 0">
+              <inertial mass="1.2190" pos="0.0 -0.01634 -0.0018" diaginertia="0.00201388958 0.00201388958 0.0021942"/>
+              <joint name="wrist_1_joint" class="size1"/>
+              <geom mesh="wrist1_0" material="black" class="visual"/>
+              <geom mesh="wrist1_1" material="urblue" class="visual"/>
+              <geom mesh="wrist1_2" material="jointgray" class="visual"/>
+              <geom class="collision" pos="0 0.05 0" quat="1 1 0 0" size="0.045 0.07"/>
+              
+              <body name="wrist_2_link" pos="0 0.127 0">
+                <inertial mass="1.2190" pos="0.0 0.01634 -0.0018" diaginertia="0.00183103958 0.00183103958 0.0021942"/>
+                <joint name="wrist_2_joint" axis="0 0 1" class="size1"/>
+                <geom mesh="wrist2_0" material="black" class="visual"/>
+                <geom mesh="wrist2_1" material="urblue" class="visual"/>
+                <geom mesh="wrist2_2" material="jointgray" class="visual"/>
+                <geom class="collision" size="0.045 0.06" pos="0 0 0.04"/>
+                <geom class="collision" pos="0 0.02 0.1" quat="1 1 0 0" size="0.045 0.04"/>
+                
+                <body name="wrist_3_link" pos="0 0 0.1">
+                  <inertial mass="0.1879" pos="0.0 0.0 -0.001159" diaginertia="8.06247583e-05 8.06247583e-05 0.0001321171875"/>
+                  <joint name="wrist_3_joint" class="size1"/>
+                  <geom material="linkgray" mesh="wrist3" class="visual"/>
+                  <geom class="eef_collision" pos="0 0.08 0" quat="1 1 0 0" size="0.045 0.02"/>
+                  <site name="attachment_site" pos="0 0.1 0" quat="-1 1 0 0"/>
+
+                  <!-- 腕部相机 -->
+                  <!-- pos: 相机位置微调，避免被夹爪挡住 -->
+                  <!-- quat: 旋转相机朝向，让它看向手指尖方向 -->
+                  <!-- fovy: 视野角度，45-60度适合近距离抓取 -->
+                  <camera name="wrist_camera" pos="0 0.1 0.02" quat="0.707 0.707 0 0" fovy="50"/>
+
+                  <body name="gripper_base" pos="0 0.0823 0" quat="-0.707 0.707 0 0">
+                    <!-- 夹爪基座 (黑色圆柱) -->
+                    <inertial pos="0 0 0" mass="0.3" diaginertia="0.001 0.001 0.001"/>
+                    <geom type="cylinder" size="0.04 0.04" rgba="0.1 0.1 0.1 1"/>
+                    <!-- 左手指 (滑动关节) -->
+                    <body name="left_finger" pos="-0.04 0 0.08">
+                      <inertial pos="0 0 0" mass="0.1" diaginertia="0.001 0.001 0.001"/>
+                      <!-- 限制滑动范围 0 到 0.04米 -->
+                      <joint name="finger_joint1" type="slide" axis="1 0 0" range="0 0.04" damping="1"/>
+                      <geom type="box" size="0.005 0.03 0.04" rgba="0.5 0.5 0.5 1" friction="1.5 0.05 0.001"/>
+                    </body>
+                    <!-- 右手指 (滑动关节) -->
+                    <body name="right_finger" pos="0.04 0 0.08">
+                      <inertial pos="0 0 0" mass="0.1" diaginertia="0.001 0.001 0.001"/>
+                      <joint name="finger_joint2" type="slide" axis="-1 0 0" range="0 0.04" damping="1"/>
+                      <geom type="box" size="0.005 0.03 0.04" rgba="0.5 0.5 0.5 1" friction="1.5 0.05 0.001"/>
+                    </body>
+                    <!-- TCP (Tool Center Point) -->
+                    <!-- 坐标系相对于 gripper_base -->
+                    <site name="tcp" pos="0 0 0.06" size="0.005" rgba="0 1 0 0.5" group="0"/>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <!-- 执行器 -->
+  <actuator>
+    <general class="size3" name="shoulder_pan" joint="shoulder_pan_joint"/>
+    <general class="size3" name="shoulder_lift" joint="shoulder_lift_joint"/>
+    <general class="size3_limited" name="elbow" joint="elbow_joint"/>
+    <general class="size1" name="wrist_1" joint="wrist_1_joint"/>
+    <general class="size1" name="wrist_2" joint="wrist_2_joint"/>
+    <general class="size1" name="wrist_3" joint="wrist_3_joint"/>
+
+    <!-- 夹爪电机 -->
+    <!-- 使用位置控制，kp设大一点保证夹紧力 -->
+    <position name="close_gripper" joint="finger_joint1" kp="1000" kv="20" ctrlrange="0 0.04" forcerange="-20 20"/>
+    <!-- 为了简单，这里只驱动一个关节，如果是完全物理仿真通常需要定义两个，或者使用等式约束(equality)让两个手指同步 -->
+    <position name="close_gripper_mirror" joint="finger_joint2" kp="1000" kv="20" ctrlrange="0 0.04" forcerange="-20 20"/>
+
+  </actuator>
+
+  <!-- 关键帧 -->
+  <keyframe>
+    <key name="home" qpos="-1.5708 -1.5708 1.5708 -1.5708 -1.5708 0" ctrl="-1.5708 -1.5708 1.5708 -1.5708 -1.5708 0"/>
+  </keyframe>
+</mujoco>
+

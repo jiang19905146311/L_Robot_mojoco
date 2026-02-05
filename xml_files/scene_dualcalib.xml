@@ -1,0 +1,253 @@
+<!-- 定义MuJoCo模型，模型名称为"dual_ur5_scene"，核心是创建两台面对面的UR5机械臂（左侧带相机、右侧携带棋盘格） -->
+<mujoco model="dual_ur5_scene">
+  <compiler angle="radian" meshdir="assets" autolimits="true"/>
+  <option integrator="implicitfast"/>
+
+  <!-- ================= 1. 资源引用 (公用) ================= -->
+  <asset>
+    <!-- 材质 -->
+    <material class="ur5" name="black" rgba="0.033 0.033 0.033 1"/>
+    <material class="ur5" name="jointgray" rgba="0.278 0.278 0.278 1"/>
+    <material class="ur5" name="linkgray" rgba="0.82 0.82 0.82 1"/>
+    <material class="ur5" name="urblue" rgba="0.49 0.678 0.8 1"/>
+    
+    <!-- 棋盘格材质 -->
+    <texture name="checker_tex" type="2d" builtin="checker" rgb1="0 0 0" rgb2="1 1 1" width="512" height="512" mark="none"/>
+    <material name="checker_mat" texture="checker_tex" texrepeat="3.5 3" reflectance="0"/>
+    <material name="white_mat" rgba="1 1 1 1" reflectance="0"/>
+
+    <!-- Mesh 文件 (两个机器人共用一套 Mesh) -->
+    <mesh file="base_0.obj"/>   <mesh file="base_1.obj"/>
+    <mesh file="shoulder_0.obj"/> <mesh file="shoulder_1.obj"/> <mesh file="shoulder_2.obj"/>
+    <mesh file="upperarm_0.obj"/> <mesh file="upperarm_1.obj"/> <mesh file="upperarm_2.obj"/> <mesh file="upperarm_3.obj"/>
+    <mesh file="forearm_0.obj"/>  <mesh file="forearm_1.obj"/>  <mesh file="forearm_2.obj"/>  <mesh file="forearm_3.obj"/>
+    <mesh file="wrist1_0.obj"/>   <mesh file="wrist1_1.obj"/>   <mesh file="wrist1_2.obj"/>
+    <mesh file="wrist2_0.obj"/>   <mesh file="wrist2_1.obj"/>   <mesh file="wrist2_2.obj"/>
+    <mesh file="wrist3.obj"/>
+  </asset>
+
+  <!-- ================= 2. 默认参数 (公用) ================= -->
+  <default>
+    <default class="ur5">
+      <material specular="0.5" shininess="0.25"/>
+      <joint axis="0 1 0" range="-6.28319 6.28319" armature="0.1" damping="5"/>
+      <general gaintype="fixed" biastype="affine" ctrlrange="-6.2831 6.2831" gainprm="2000" biasprm="0 -2000 -400" forcerange="-150 150"/>
+      
+      <default class="size3">
+        <default class="size3_limited">
+          <joint range="-3.1415 3.1415"/>
+          <general ctrlrange="-3.1415 3.1415"/>
+        </default>
+      </default>
+      
+      <default class="size1">
+        <general gainprm="500" biasprm="0 -500 -100" forcerange="-28 28"/> 
+      </default>
+      
+      <default class="visual">
+        <geom type="mesh" contype="0" conaffinity="0" group="2"/>
+      </default>
+      
+      <default class="collision">
+        <geom type="capsule" group="3"/>
+        <default class="eef_collision">
+          <geom type="cylinder"/>
+        </default>
+      </default>
+      
+      <site size="0.001" rgba="0.5 0.5 0.5 0.3" group="4"/>
+    </default>
+  </default>
+
+  <!-- ================= 3. 世界构建 ================= -->
+  <worldbody>
+    <light pos="0 0 3" dir="0 0 -1" diffuse="0.5 0.5 0.5"/>
+    <geom name="floor" type="plane" size="3 3 0.1" rgba="0.2 0.2 0.2 1"/>
+
+    <!-- ==================== Robot 1 (左侧/观察者) ==================== -->
+    <!-- 位置: y = -0.5 -->
+    <body name="base" pos="0 -0.5 0" quat="0 0 0 -1" childclass="ur5">
+      <inertial mass="4.0" pos="0 0 0" diaginertia="0.0044 0.0044 0.0072"/>
+      <geom mesh="base_0" material="black" class="visual"/>
+      <geom mesh="base_1" material="jointgray" class="visual"/>
+      
+      <body name="shoulder_link" pos="0 0 0.089159">
+        <inertial mass="3.7" pos="0 -0.0019 -0.025" diaginertia="0.015 0.015 0.010"/>
+        <joint name="shoulder_pan_joint" class="size3" axis="0 0 1"/>
+        <geom mesh="shoulder_0" material="urblue" class="visual"/>
+        <geom mesh="shoulder_1" material="black" class="visual"/>
+        <geom mesh="shoulder_2" material="jointgray" class="visual"/>
+        <geom class="collision" size="0.06 0.06" pos="0 0 -0.04"/>
+        
+        <body name="upper_arm_link" pos="0 0.138 0" quat="1 0 1 0">
+          <inertial mass="8.39" pos="-0.21 0 0.11" diaginertia="0.13 0.13 0.015"/>
+          <joint name="shoulder_lift_joint" class="size3"/>
+          <geom mesh="upperarm_0" material="linkgray" class="visual"/>
+          <geom mesh="upperarm_1" material="black" class="visual"/>
+          <geom mesh="upperarm_2" material="jointgray" class="visual"/>
+          <geom mesh="upperarm_3" material="urblue" class="visual"/>
+          <geom class="collision" pos="0 -0.04 0" quat="1 1 0 0" size="0.054 0.06"/>
+          <geom class="collision" size="0.054 0.2" pos="0 0 0.2"/>
+          
+          <body name="forearm_link" pos="0 -0.131 0.425">
+            <inertial mass="2.27" pos="-0.24 0 0.026" diaginertia="0.03 0.03 0.004"/>
+            <joint name="elbow_joint" class="size3_limited"/>
+            <geom mesh="forearm_0" material="urblue" class="visual"/>
+            <geom mesh="forearm_1" material="linkgray" class="visual"/>
+            <geom mesh="forearm_2" material="black" class="visual"/>
+            <geom mesh="forearm_3" material="jointgray" class="visual"/>
+            <geom class="collision" pos="0 0.08 0" quat="1 1 0 0" size="0.040 0.06"/>
+            <geom class="collision" size="0.040 0.19" pos="0 0 0.2"/>
+            
+            <body name="wrist_1_link" pos="0 0 0.392" quat="1 0 1 0">
+              <inertial mass="1.2" pos="0 -0.016 -0.0018" diaginertia="0.002 0.002 0.002"/>
+              <joint name="wrist_1_joint" class="size1"/>
+              <geom mesh="wrist1_0" material="black" class="visual"/>
+              <geom mesh="wrist1_1" material="urblue" class="visual"/>
+              <geom mesh="wrist1_2" material="jointgray" class="visual"/>
+              <geom class="collision" pos="0 0.05 0" quat="1 1 0 0" size="0.045 0.07"/>
+              
+              <body name="wrist_2_link" pos="0 0.127 0">
+                <inertial mass="1.2" pos="0 0.016 -0.0018" diaginertia="0.0018 0.0018 0.002"/>
+                <joint name="wrist_2_joint" axis="0 0 1" class="size1"/>
+                <geom mesh="wrist2_0" material="black" class="visual"/>
+                <geom mesh="wrist2_1" material="urblue" class="visual"/>
+                <geom mesh="wrist2_2" material="jointgray" class="visual"/>
+                <geom class="collision" size="0.045 0.06" pos="0 0 0.04"/>
+                <geom class="collision" pos="0 0.02 0.1" quat="1 1 0 0" size="0.045 0.04"/>
+                
+                <body name="wrist_3_link" pos="0 0 0.1">
+                  <inertial mass="0.18" pos="0 0 -0.001" diaginertia="8e-5 8e-5 0.0001"/>
+                  <joint name="wrist_3_joint" class="size1"/>
+                  <geom material="linkgray" mesh="wrist3" class="visual"/>
+                  <geom class="eef_collision" pos="0 0.08 0" quat="1 1 0 0" size="0.045 0.02"/>
+                  
+                  <!-- Robot 1 带着相机 -->
+                  <camera name="wrist_camera" pos="0 0.1 0.02" quat="0.707 0.707 0 0" fovy="50"/>
+                  
+                  <!-- 夹爪 (简化版) -->
+                  <body name="gripper_base" pos="0 0.0823 0" quat="-0.707 0.707 0 0">
+                    <geom type="cylinder" size="0.04 0.04" rgba="0.1 0.1 0.1 1"/>
+                    <site name="tcp" pos="0 0 0.06" size="0.005" rgba="0 1 0 0.5" group="0"/>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+
+    <!-- ==================== Robot 2 (右侧/持有者) ==================== -->
+    <!-- 位置: y = 0.5 (与 Robot 1 面对面) -->
+    <!-- ⚠️ 注意：所有 joint 名称都加了 _2 后缀 -->
+    <body name="base_2" pos="0 0.5 0" quat="0 0 0 1" childclass="ur5">
+      <!-- 旋转 quat="0 0 0 1" 让它转180度面对 Robot 1 -->
+      <inertial mass="4.0" pos="0 0 0" diaginertia="0.0044 0.0044 0.0072"/>
+      <geom mesh="base_0" material="black" class="visual"/>
+      <geom mesh="base_1" material="jointgray" class="visual"/>
+      
+      <body name="shoulder_link_2" pos="0 0 0.089159">
+        <inertial mass="3.7" pos="0 -0.0019 -0.025" diaginertia="0.015 0.015 0.010"/>
+        <!-- ⚠️ Joint Renamed -->
+        <joint name="shoulder_pan_joint_2" class="size3" axis="0 0 1"/>
+        <geom mesh="shoulder_0" material="urblue" class="visual"/>
+        <geom mesh="shoulder_1" material="black" class="visual"/>
+        <geom mesh="shoulder_2" material="jointgray" class="visual"/>
+        <geom class="collision" size="0.06 0.06" pos="0 0 -0.04"/>
+        
+        <body name="upper_arm_link_2" pos="0 0.138 0" quat="1 0 1 0">
+          <inertial mass="8.39" pos="-0.21 0 0.11" diaginertia="0.13 0.13 0.015"/>
+          <joint name="shoulder_lift_joint_2" class="size3"/>
+          <geom mesh="upperarm_0" material="linkgray" class="visual"/>
+          <geom mesh="upperarm_1" material="black" class="visual"/>
+          <geom mesh="upperarm_2" material="jointgray" class="visual"/>
+          <geom mesh="upperarm_3" material="urblue" class="visual"/>
+          <geom class="collision" pos="0 -0.04 0" quat="1 1 0 0" size="0.054 0.06"/>
+          <geom class="collision" size="0.054 0.2" pos="0 0 0.2"/>
+          
+          <body name="forearm_link_2" pos="0 -0.131 0.425">
+            <inertial mass="2.27" pos="-0.24 0 0.026" diaginertia="0.03 0.03 0.004"/>
+            <joint name="elbow_joint_2" class="size3_limited"/>
+            <geom mesh="forearm_0" material="urblue" class="visual"/>
+            <geom mesh="forearm_1" material="linkgray" class="visual"/>
+            <geom mesh="forearm_2" material="black" class="visual"/>
+            <geom mesh="forearm_3" material="jointgray" class="visual"/>
+            <geom class="collision" pos="0 0.08 0" quat="1 1 0 0" size="0.040 0.06"/>
+            <geom class="collision" size="0.040 0.19" pos="0 0 0.2"/>
+            
+            <body name="wrist_1_link_2" pos="0 0 0.392" quat="1 0 1 0">
+              <inertial mass="1.2" pos="0 -0.016 -0.0018" diaginertia="0.002 0.002 0.002"/>
+              <joint name="wrist_1_joint_2" class="size1"/>
+              <geom mesh="wrist1_0" material="black" class="visual"/>
+              <geom mesh="wrist1_1" material="urblue" class="visual"/>
+              <geom mesh="wrist1_2" material="jointgray" class="visual"/>
+              <geom class="collision" pos="0 0.05 0" quat="1 1 0 0" size="0.045 0.07"/>
+              
+              <body name="wrist_2_link_2" pos="0 0.127 0">
+                <inertial mass="1.2" pos="0 0.016 -0.0018" diaginertia="0.0018 0.0018 0.002"/>
+                <joint name="wrist_2_joint_2" axis="0 0 1" class="size1"/>
+                <geom mesh="wrist2_0" material="black" class="visual"/>
+                <geom mesh="wrist2_1" material="urblue" class="visual"/>
+                <geom mesh="wrist2_2" material="jointgray" class="visual"/>
+                <geom class="collision" size="0.045 0.06" pos="0 0 0.04"/>
+                <geom class="collision" pos="0 0.02 0.1" quat="1 1 0 0" size="0.045 0.04"/>
+                
+                <body name="wrist_3_link_2" pos="0 0 0.1">
+                  <inertial mass="0.18" pos="0 0 -0.001" diaginertia="8e-5 8e-5 0.0001"/>
+                  <joint name="wrist_3_joint_2" class="size1"/>
+                  <geom material="linkgray" mesh="wrist3" class="visual"/>
+                  <geom class="eef_collision" pos="0 0.08 0" quat="1 1 0 0" size="0.045 0.02"/>
+
+                  <!-- Robot 2 的夹爪基座 -->
+                  <body name="gripper_base_2" pos="0 0.0823 0" quat="-0.707 0.707 0 0">
+                    <geom type="cylinder" size="0.04 0.04" rgba="0.1 0.1 0.1 1"/>
+                    <site name="tcp_2" pos="0 0 0.06" size="0.005" rgba="1 0 0 0.5" group="0"/>
+                    
+                    <!-- 这里我们把棋盘格直接 "焊接" 到 Robot 2 的手上 (模拟抓着) -->
+                    <!-- 旋转让它面对 Robot 1 -->
+                    <body name="checkerboard_attached" pos="0 0 0.1" euler="0 0 0">
+                        <!-- 引用之前的 checkerboard 几何体 -->
+                        <geom type="box" size="0.195 0.17 0.004" material="white_mat" euler="-90 0 0"/>
+                        <geom type="box" size="0.175 0.15 0.005" material="checker_mat" euler="-90 0 0"/>
+                    </body>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <!-- ================= 4. 执行器 (双倍快乐) ================= -->
+  <actuator>
+    <!-- Robot 1 Controllers -->
+    <general class="size3" name="shoulder_pan" joint="shoulder_pan_joint"/>
+    <general class="size3" name="shoulder_lift" joint="shoulder_lift_joint"/>
+    <general class="size3_limited" name="elbow" joint="elbow_joint"/>
+    <general class="size1" name="wrist_1" joint="wrist_1_joint"/>
+    <general class="size1" name="wrist_2" joint="wrist_2_joint"/>
+    <general class="size1" name="wrist_3" joint="wrist_3_joint"/>
+
+    <!-- Robot 2 Controllers (注意名字后缀 _2) -->
+    <general class="size3" name="shoulder_pan_2" joint="shoulder_pan_joint_2"/>
+    <general class="size3" name="shoulder_lift_2" joint="shoulder_lift_joint_2"/>
+    <general class="size3_limited" name="elbow_2" joint="elbow_joint_2"/>
+    <general class="size1" name="wrist_1_2" joint="wrist_1_joint_2"/>
+    <general class="size1" name="wrist_2_2" joint="wrist_2_joint_2"/>
+    <general class="size1" name="wrist_3_2" joint="wrist_3_joint_2"/>
+  </actuator>
+
+  <!-- 初始姿态 -->
+  <keyframe>
+    <!-- 两个机器人都抬起来一点，面对面 -->
+    <!-- 12个关节数据: [Robot 1 (6个)] + [Robot 2 (6个)] -->
+    <!-- Robot 1: -1.57 -1.57 1.57 ... -->
+    <!-- Robot 2: -1.57 -1.57 1.57 ... (同样的姿态，因为它是倒着放的，所以视觉上会镜像) -->
+    <key name="meet_pose" 
+         qpos="-1.57 -1.57 1.57 -1.57 -1.57 0   -1.57 -1.57 1.57 -1.57 -1.57 0" 
+         ctrl="-1.57 -1.57 1.57 -1.57 -1.57 0   -1.57 -1.57 1.57 -1.57 -1.57 0"/>
+  </keyframe>
+</mujoco>

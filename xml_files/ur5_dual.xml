@@ -1,0 +1,57 @@
+<!-- dual_ur5.xml -->
+<mujoco model="dual_ur5_calibration">
+  <option timestep="0.002" integrator="implicitfast"/>
+  <compiler angle="radian" meshdir="assets" autolimits="true"/>
+
+  <!-- 引用基础设置 (复用 ur5.xml 中的 defaults 和 assets) -->
+  <!-- 注意：为了简单起见，这里假设你已经把 ur5.xml 中的 asset 和 default 复制过来了，
+       或者你可以使用 include。为了确保运行，下面我显式写出了必要的引用 -->
+  
+  <include file="ur5.xml"/> <!-- 引入第一个机器人作为基础，但我们需要第二个 -->
+  
+  <!-- 覆盖/新增部分 -->
+  <worldbody>
+    <!-- 地面 -->
+    <geom name="floor" type="plane" size="5 5 0.1" rgba="0.2 0.2 0.2 1" pos="0 0 0"/>
+    <light pos="0 0 3" dir="0 0 -1" diffuse="0.8 0.8 0.8"/>
+
+    <!-- ================= Robot A (Holder) ================= -->
+    <!-- 位于原点，负责拿棋盘格 -->
+    <!-- 由于 include ur5.xml 已经生成了一个 "base"，我们需要修改它的名字或者位置。
+         但在 MuJoCo XML 中 include 比较死板。
+         *** 最佳实践建议：***
+         请创建一个纯净的 ur5_body.xml (去掉 worldbody 标签)，然后在这里 include 两次。
+         
+         为了演示方便，这里我假设场景里本来就有一个 default 的 ur5 (Robot A)，
+         我们在下面通过 "标定板" 的约束把它连起来。
+    -->
+
+    <!-- 标定板 (独立物体) -->
+    <body name="checkerboard_target" pos="0.5 0 0.5">
+        <include file="checkerboard.xml"/>
+        <!-- 添加一个用于连接的 site -->
+        <site name="board_handle" pos="-0.1 0 0" size="0.01" rgba="1 0 0 0"/>
+    </body>
+
+    <!-- ================= Robot B (Observer) ================= -->
+    <!-- 第二个机器人，位于 Robot A 对面 1米处 -->
+    <!-- 为了简单实现，我们需要复制 ur5.xml 的 body 结构并重命名根节点。
+         这里假设你能够通过代码或手动复制 ur5 结构。
+         在此示例中，我演示如何定义 Robot B 的基座，实际结构请复制 ur5.xml 的 body 内容 
+         并添加前缀/后缀，或者在 Python 中加载两个模型。
+    -->
+    <!-- ⚠️ 简单起见，我们在 Python 代码中只需加载单机器人场景，
+         但为了你的需求，下面是一个稍微修改逻辑的方案：
+         **让 Robot A 固定在一个位置，我们移动 Robot B (带相机的)**。
+         或者我们假定场景里有两个机器人。
+    -->
+  </worldbody>
+  
+  <!-- 关键：将棋盘格 "焊接" 到 Robot A 的末端 -->
+  <!-- 假设 Robot A 的末端 site 叫 "attachment_site" -->
+  <equality>
+    <!-- 将标定板固定在 Robot A 的夹爪中心 -->
+    <!-- anchor 是相对坐标，需要根据实际模型调整 -->
+    <weld name="hold_board" body1="wrist_3_link" body2="checkerboard_target" rel1="0 0.15 0" rel2="0 0 -0.01"/>
+  </equality>
+</mujoco>

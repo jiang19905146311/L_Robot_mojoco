@@ -1,0 +1,41 @@
+<!-- 视觉标定 -->
+<mujoco model="scene_checkerboard">
+  <option timestep="0.005"/>
+
+  <asset>
+    <texture name="checker_tex" type="2d" builtin="checker" rgb1="0 0 0" rgb2="1 1 1" width="512" height="512" mark="none"/>
+    <material name="checker_mat" texture="checker_tex" texrepeat="3.5 3" reflectance="0"/>
+    <material name="white_mat" rgba="1 1 1 1" reflectance="0"/>
+  </asset>
+
+  <visual>
+    <!-- 提高离屏渲染分辨率 -->
+    <global offwidth="1920" offheight="1080"/>
+    <quality shadowsize="4096"/>
+  </visual>
+
+  <worldbody>
+    <!-- 环境光 (变暗一点) -->
+    <light pos="0 0 2" dir="0 0 -1" diffuse="0.3 0.3 0.3"/>
+    
+    <!-- 补光灯：放在相机附近 (0 -0.8)，照向棋盘格 (0 0 0) 方向 -->
+    <!-- 这里的 dir="0 1 -0.2" 表示朝向 Y轴正方向(棋盘格方向) 稍微向下 -->
+    <light pos="0 -0.8 1.5" dir="0 1 -0.5" diffuse="0.8 0.8 0.8" specular="0.1 0.1 0.1"/>
+    
+    <!-- 地面 (可选，作为背景参考) -->
+    <!-- size前两个是视觉纹理平铺尺寸，最后是碰撞厚度-->
+    <geom name="floor" type="plane" size="2 2 0.1" rgba="0.3 0.3 0.3 1"/>
+
+    <!-- 相机 -->
+    <!--  前3个数字是物体局部X轴，后3个数字是物体局部y轴 -->
+    <!--  物体的「正前方」（比如相机的拍摄方向、棋盘格的朝向）是物体的局部 Z 轴 -->
+    <camera name="fixed_cam" pos="0 -0.8 0.3" xyaxes="1 0 0 0 0 1" fovy="45"/>
+
+    <!-- 标定板 -->
+    <body name="checkerboard" pos="0 0 0.3" euler="0 0 0">
+        <geom type="box" size="0.195 0.17 0.004" material="white_mat" euler="-90 0 0"/>
+        <geom type="box" size="0.175 0.15 0.005" material="checker_mat" euler="-90 0 0"/>
+    </body>
+
+  </worldbody>
+</mujoco>

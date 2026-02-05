@@ -1,0 +1,24 @@
+<!-- checkerboard.xml -->
+<mujoco>
+  <asset>
+    <!-- 棋盘格纹理 -->
+    <texture name="checker_tex" type="2d" builtin="checker" rgb1="0 0 0" rgb2="1 1 1" width="512" height="512" mark="none"/>
+    <!-- 材质：texrepeat="7 6" -->
+    <!-- checker 纹理本身包含2个格子，所以 3.5 * 2 = 7格，3 * 2 = 6格 -->
+    <material name="checker_mat" texture="checker_tex" texrepeat="3.5 3" reflectance="0"/>
+    <!-- 增加一个纯白材质用于边框 -->
+    <material name="white_mat" rgba="1 1 1 1" reflectance="0"/>
+  </asset>
+
+  <worldbody>
+    <body name="checkerboard" pos="0 0 0">
+        <!-- 白色底板 (比棋盘格大一圈，制造边框) -->
+        <!-- 尺寸: X方向大2cm, Y方向大2cm, 厚度稍厚一点 -->
+        <geom type="box" size="0.195 0.17 0.004" material="white_mat" euler="-90 0 0"/>
+        
+        <!-- 棋盘格纹理 (叠加在底板表面) -->
+        <!-- pos: 在局部坐标系稍微突起一点 (0.005 vs 0.004) 避免 Z-fighting 闪烁 -->
+        <geom type="box" size="0.175 0.15 0.005" material="checker_mat" euler="-90 0 0"/>
+    </body>
+  </worldbody>
+</mujoco>
