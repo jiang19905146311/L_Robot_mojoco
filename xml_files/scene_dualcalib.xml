@@ -1,5 +1,6 @@
 <!-- 定义MuJoCo模型，模型名称为"dual_ur5_scene"，核心是创建两台面对面的UR5机械臂（左侧带相机、右侧携带棋盘格） -->
 <mujoco model="dual_ur5_scene">
+  <!-- 编译器配置：设置模型解析和加载的相关参数 -->
   <compiler angle="radian" meshdir="assets" autolimits="true"/>
   <option integrator="implicitfast"/>
 
@@ -61,12 +62,12 @@
 
   <!-- ================= 3. 世界构建 ================= -->
   <worldbody>
-    <light pos="0 0 3" dir="0 0 -1" diffuse="0.5 0.5 0.5"/>
+    <light pos="0 0 3" dir="0 0 -1" directional="true" diffuse="0.5 0.5 0.5"/>
     <geom name="floor" type="plane" size="3 3 0.1" rgba="0.2 0.2 0.2 1"/>
 
     <!-- ==================== Robot 1 (左侧/观察者) ==================== -->
-    <!-- 位置: y = -0.5 -->
-    <body name="base" pos="0 -0.5 0" quat="0 0 0 -1" childclass="ur5">
+     <!-- 机械臂1位置：y = -0.5（世界坐标系左侧），四元数姿态quat="0 0 0 -1"（绕z轴旋转180°，准备与右侧机械臂面对面） -->
+    <body name="base" pos="0 -0.8 0" quat="0 0 0 -1" childclass="ur5">
       <inertial mass="4.0" pos="0 0 0" diaginertia="0.0044 0.0044 0.0072"/>
       <geom mesh="base_0" material="black" class="visual"/>
       <geom mesh="base_1" material="jointgray" class="visual"/>
@@ -139,9 +140,8 @@
     </body>
 
     <!-- ==================== Robot 2 (右侧/持有者) ==================== -->
-    <!-- 位置: y = 0.5 (与 Robot 1 面对面) -->
-    <!-- ⚠️ 注意：所有 joint 名称都加了 _2 后缀 -->
-    <body name="base_2" pos="0 0.5 0" quat="0 0 0 1" childclass="ur5">
+    <!-- 机械臂2位置：y = 0.5（世界坐标系右侧），四元数姿态quat="0 0 0 1"（默认姿态，与左侧机械臂面对面） -->
+    <body name="base_2" pos="0 0.8 0" quat="0 0 0 1" childclass="ur5">
       <!-- 旋转 quat="0 0 0 1" 让它转180度面对 Robot 1 -->
       <inertial mass="4.0" pos="0 0 0" diaginertia="0.0044 0.0044 0.0072"/>
       <geom mesh="base_0" material="black" class="visual"/>
@@ -202,14 +202,13 @@
                   <!-- Robot 2 的夹爪基座 -->
                   <body name="gripper_base_2" pos="0 0.0823 0" quat="-0.707 0.707 0 0">
                     <geom type="cylinder" size="0.04 0.04" rgba="0.1 0.1 0.1 1"/>
-                    <site name="tcp_2" pos="0 0 0.06" size="0.005" rgba="1 0 0 0.5" group="0"/>
+                    <site name="tcp_2" pos="0 0 0.05" size="0.005" rgba="1 0 0 0.5" group="0"/>
                     
-                    <!-- 这里我们把棋盘格直接 "焊接" 到 Robot 2 的手上 (模拟抓着) -->
-                    <!-- 旋转让它面对 Robot 1 -->
-                    <body name="checkerboard_attached" pos="0 0 0.1" euler="0 0 0">
+                    <!--  Robot 2的棋盘格 -->
+                    <body name="checkerboard_attached" pos="0 0 0.045" euler="0 0 0">
                         <!-- 引用之前的 checkerboard 几何体 -->
-                        <geom type="box" size="0.195 0.17 0.004" material="white_mat" euler="-90 0 0"/>
-                        <geom type="box" size="0.175 0.15 0.005" material="checker_mat" euler="-90 0 0"/>
+                        <geom type="box" size="0.195 0.17 0.004" material="white_mat" euler="0 0 0"/>
+                        <geom type="box" size="0.175 0.15 0.005" material="checker_mat" euler="0 0 0"/>
                     </body>
                   </body>
                 </body>
@@ -221,7 +220,7 @@
     </body>
   </worldbody>
 
-  <!-- ================= 4. 执行器 (双倍快乐) ================= -->
+  <!-- ================= 4. 执行器  ================= -->
   <actuator>
     <!-- Robot 1 Controllers -->
     <general class="size3" name="shoulder_pan" joint="shoulder_pan_joint"/>

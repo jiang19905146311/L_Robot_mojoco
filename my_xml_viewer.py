@@ -2,6 +2,12 @@ import mujoco
 import mujoco.viewer
 import time
 
+'''
+scene_catch.xml
+scene_dualcalib.xml
+
+'''
+
 # 加载模型
 try:
     model = mujoco.MjModel.from_xml_path("/home/jt/WorkSpace/Mujoco/ur5_simulation/xml_files/scene_dualcalib.xml")

@@ -1,6 +1,6 @@
 '''
 ur5_simulation.ur5_simulator1 的 Docstring
-抓取仿真带拍照
+单机械臂抓取仿真+拍照功能
 '''
 import os
 import mujoco

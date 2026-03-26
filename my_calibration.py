@@ -1,5 +1,5 @@
 '''
-标定板标定
+相机-标定板标定
 '''
 import mujoco
 import numpy as np

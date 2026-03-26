@@ -1,3 +1,7 @@
+'''
+utils_robot.py 的 Docstring
+机器人相关的工具函数，包括模型加载、状态重置、逆运动学求解以及工作空间点云生成等功能。
+'''
 import mujoco
 import numpy as np
 

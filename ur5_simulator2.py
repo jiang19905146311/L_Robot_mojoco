@@ -1,6 +1,6 @@
 '''
 ur5_simulation.ur5_simulator1 的 Docstring
-单机器人加视觉
+单机器人抓取仿真+视觉窗口
 '''
 import os
 # 配置后端
@@ -14,7 +14,7 @@ import cv2
 
 # === 导入自定义模块 ===
 import utils_robot
-import utils_vision
+from utils_vision import VisionModule
 
 # === 全局配置 ===
 XML_PATH = "/home/jt/WorkSpace/Mujoco/ur5_simulation/xml_files/scene_catch.xml"
@@ -66,7 +66,7 @@ def run_simulation():
         
         # 延迟初始化渲染器 (防止上下文冲突)
         renderer = mujoco.Renderer(model, height=480, width=640)
-        
+        vision_module = VisionModule(width=640, height=480, fovy=60)  # 根据实际相机参数调整
         # 调整上帝视角
         viewer.cam.distance = 2.0
         viewer.cam.lookat = [0.5, 0, 0.5]
@@ -87,7 +87,8 @@ def run_simulation():
                     img_rgb = renderer.render()
                     
                     # 调用 vision_utils
-                    res_img, center = utils_vision.detect_green_cube(img_rgb)
+                    res_img, center = vision_module.detect_green_cube(img_rgb)
+
                     
                     if res_img is not None:
                         cv2.imshow("Wrist Camera", res_img)
