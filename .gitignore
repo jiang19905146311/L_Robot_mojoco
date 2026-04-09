@@ -1,0 +1,391 @@
+## ==================================================
+## 基础说明：按工具/场景归类，忽略无需版本控制的文件
+## ==================================================
+
+# ----------------------------
+# 1. 版本控制自身相关 (Git)
+# ----------------------------
+# Git仓库元数据目录
+.git/
+
+
+# ----------------------------
+# 2. 通用开发工具临时文件
+# ----------------------------
+# 临时文件/备份文件
+# Office等软件的临时文件
+~$*
+# 编辑器临时备份文件
+*~
+# 通用临时文件
+*.tmp
+# 项目临时文件
+*.tmp_proj
+
+# 日志文件
+# 通用日志文件
+*.log
+# 日志目录 (不区分大小写)
+[Ll]og/
+# 日志目录
+logs/
+# 服务日志
+*.svclog
+
+
+# ----------------------------
+# 3. IDE、编辑器与代码分析工具
+# ----------------------------
+# Visual Studio
+# Visual Studio 2015+ 缓存与配置
+.vs/
+# 解决方案用户选项 (旧版VS)
+*.suo
+# 用户缓存
+*.userosscache
+# 解决方案文档状态
+*.sln.docstates
+# C++项目用户配置（按需取消注释）
+# *.vcxproj.user
+
+# JetBrains Rider
+# Rider项目配置
+.idea/
+# Rider解决方案模块
+*.sln.iml
+
+# ReSharper
+# ReSharper缓存
+_ReSharper*/
+# ReSharper配置
+*.[Rr]e[Ss]harper
+# ReSharper用户设置
+*.DotSettings.user
+
+# 其他分析/辅助工具
+# JustCode配置
+.JustCode
+# TeamCity配置
+_TeamCity*
+# DotCover配置
+*.dotCover
+# NCrunch缓存
+_NCrunch_*
+# NCrunch本地配置
+.*crunch*.local.xml
+# NCrunch临时文件
+nCrunchTemp_*
+# MightyMoose配置
+*.mm.*
+# AutoTest目录
+AutoTest.Net/
+# CodeRush配置
+.cr/
+# GhostDoc配置
+*.GhostDoc.xml
+
+
+# ----------------------------
+# 4. 构建输出与中间文件
+# ----------------------------
+# 构建输出目录
+# Debug构建目录
+[Dd]ebug/
+# Debug公共输出
+[Dd]ebugPublic/
+# Release构建目录
+[Rr]elease/
+# 发布版本目录
+[Rr]eleases/
+# 64位构建目录
+x64/
+# 32位构建目录
+x86/
+# 构建目录
+bld/
+# 二进制输出目录
+[Bb]in/
+# 中间对象目录
+[Oo]bj/
+# PowerShell Debug输出
+[Dd]ebugPS/
+# PowerShell Release输出
+[Rr]eleasePS/
+# .NET Core/DNX 构建产物
+artifacts/
+
+# 构建日志与测试结果
+# 构建日志
+[Bb]uild[Ll]og.*
+# MSTest测试结果
+[Tt]est[Rr]esult*/
+# NUnit测试结果
+TestResult.xml
+# NUnit视觉状态
+*.VisualState.xml
+
+# 编译中间文件
+# 接口生成文件
+*_i.c
+# 实现生成文件
+*_p.c
+# 接口头文件
+*_i.h
+# 增量链接文件
+*.ilk
+# 元数据文件
+*.meta
+# 目标文件
+*.obj
+# 预编译头
+*.pch
+# 程序数据库（调试信息）
+*.pdb
+# 性能分析缓存
+*.pgc
+# 性能分析数据库
+*.pgd
+# 响应文件
+*.rsp
+# 浏览信息文件
+*.sbr
+# 类型库
+*.tlb
+# 类型库接口
+*.tli
+# 类型库头文件
+*.tlh
+# ATL项目构建结果
+dlldata.c
+
+# VS缓存与数据库
+# Visual C++ 预编译头缓存
+ipch/
+# 资源缓存
+*.aps
+# 老版本VC++浏览信息
+*.ncb
+# 数据库缓存
+*.opendb
+# 解决方案缓存
+*.opensdf
+# 智能感知数据库
+*.sdf
+# 缓存文件
+*.cachefile
+# 通用缓存文件
+*.[Cc]ache
+# 但保留名为 .cache 的目录
+!*.[Cc]ache/
+# VC数据库缓存
+*.VC.db
+# VC数据库缓存
+*.VC.VC.opendb
+
+# VS Profiler
+*.psess
+*.vsp
+*.vspx
+*.sap
+
+# 源码控制相关文件 (非Git)
+# Visual SourceSafe
+*.vspscc
+*.vssscc
+.builds
+# 程序数据库（增量）
+*.pidb
+# SourceSafe
+*.scc
+# TFS 本地工作区
+$tf/
+
+
+# ----------------------------
+# 5. .NET 生态与包管理
+# ----------------------------
+# DNX/.NET Core
+# 项目锁文件
+project.lock.json
+# 项目片段锁
+project.fragment.lock.json
+
+# NuGet
+# NuGet包
+*.nupkg
+# 包目录（因包还原功能而无需提交）
+**/packages/*
+# 保留build目录（MSBuild目标）
+!**/packages/build/
+# 按需保留仓库配置
+#!**/packages/repositories.config
+# NuGet属性
+*.nuget.props
+# NuGet目标
+*.nuget.targets
+
+# Paket
+# Paket依赖管理器
+.paket/paket.exe
+# Paket下载的文件
+paket-files/
+
+# F# 工具
+# FAKE (F# Make)
+.fake/
+
+# Microsoft Fakes
+FakesAssemblies/
+
+
+# ----------------------------
+# 6. 特定框架与技术
+# ----------------------------
+# Qt 相关
+# Qt生成文件目录
+GeneratedFiles/
+# 任意目录下的Qt生成文件
+**/GeneratedFiles/
+# UIC生成的UI头文件
+ui_*.h
+# MOC生成的元对象代码
+moc_*.cpp
+# RCC生成的资源代码
+qrc_*.cpp
+# Qt Creator用户配置
+*.pro.user
+# Qt Creator用户配置
+*.creator.user
+
+# Web 开发
+# Sass缓存
+.sass-cache/
+# Node.js依赖
+node_modules/
+# 静态文件目录（按需取消注释）
+#wwwroot/
+# Bower依赖（按需取消注释）
+#bower_components/
+
+# Python (PTVS)
+# Python缓存
+__pycache__/
+# 编译的Python文件
+*.pyc
+
+# RIA / Silverlight
+Generated_Code/
+ClientBin/
+
+# Windows LightSwitch
+**/*.HTMLClient/GeneratedArtifacts
+**/*.DesktopClient/GeneratedArtifacts
+**/*.DesktopClient/ModelManifest.xml
+**/*.Server/GeneratedArtifacts
+**/*.Server/ModelManifest.xml
+_Pvt_Extensions
+
+
+# ----------------------------
+# 7. 部署与发布
+# ----------------------------
+# Click-Once
+publish/
+
+# Web发布
+*.[Pp]ublish.xml
+*.azurePubxml
+*.publishproj
+# Azure发布脚本
+PublishScripts/
+*.publishsettings
+
+# Windows Store App
+# 应用包目录
+AppPackages/
+# 捆绑产物
+BundleArtifacts/
+# 商店关联配置
+Package.StoreAssociation.xml
+# 包信息
+_pkginfo.txt
+
+# Azure
+# Azure构建输出
+csx/
+# Azure服务定义
+*.build.csdef
+# Azure模拟器缓存
+ecf/
+# Azure模拟器缓存
+rcf/
+
+
+# ----------------------------
+# 8. 数据库相关
+# ----------------------------
+# SQL Server数据文件
+*.mdf
+# SQL Server日志文件
+*.ldf
+# 数据库模型
+*.dbmdl
+# 数据库项目视图
+*.dbproj.schemaview
+
+
+# ----------------------------
+# 9. 报表与文档
+# ----------------------------
+# Business Intelligence
+# 报表数据
+*.rdl.data
+# BIM布局
+*.bim.layout
+# BIM设置
+*.bim_*.settings
+
+# DocProject
+DocProject/buildhelp/
+DocProject/Help/*.HxT
+DocProject/Help/*.HxC
+DocProject/Help/*.hhc
+DocProject/Help/*.hhk
+DocProject/Help/*.hhp
+DocProject/Help/Html2
+DocProject/Help/html
+
+
+# ----------------------------
+# 10. 其他工具与文件
+# ----------------------------
+# 安装程序
+# InstallShield输出
+[Ee]xpress/
+
+# 证书文件 (通常不应提交)
+*.pfx
+
+# VS升级报告
+_UpgradeReport_Files/
+Backup*/
+UpgradeLog*.XML
+UpgradeLog*.htm
+
+# 其他
+*.jfm
+orleans.codegen.cs
+Chutzpah*
+# 自定义调试文件
+dump_mesh_debug.txt
+
+# *.ifc 是建筑信息模型文件，如果项目中不需要版本控制，请取消下面一行的注释
+# *.ifc
+
+
+# ----------------------------
+# 11. 项目特定忽略 (请在此处自定义)
+# ----------------------------
+标定/PointCloudData/calibration_files/
+标定/PointCloudAPP/x64/
+export_files
