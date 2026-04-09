@@ -13,12 +13,13 @@ import cv2
 import scipy.linalg
 import sys
 import datetime
-import os
 
 from scipy.spatial.transform import Rotation as R
 from scipy.optimize import least_squares
 
+import utils_robot
 from utils_vision import VisionModule
+from utils_logging import DoubleLogger
 
 # ================== 核心算法数学模块 ==================
 
@@ -108,7 +109,7 @@ def solve_axb_ycz_closed_form(samples):
     t_C = [s['C'][:3, 3].reshape(3,1) for s in samples]
 
     # ==========================================
-    # 1. 求解旋转分量 RX (Eq. 7 - Eq. 27)
+    # 求解旋转分量 RX (Eq. 7 - Eq. 27)
     # ==========================================
 
     # 求解 RX (原始 A, B, C)
@@ -123,7 +124,7 @@ def solve_axb_ycz_closed_form(samples):
     RZ = build_M_and_solve(R_C, RB_T, R_A)
     
     # ==========================================
-    # 2. 求解平移分量 tX, tY, tZ (Eq. 29 - Eq. 31)
+    # 求解平移分量 tX, tY, tZ (Eq. 29 - Eq. 31)
     # ==========================================
     J_tilde = np.zeros((3 * n, 9))
     b_tilde = np.zeros((3 * n, 1))
@@ -146,6 +147,10 @@ def solve_axb_ycz_closed_form(samples):
     X[:3,:3], X[:3,3] = RX, tX.flatten()
     Y[:3,:3], Y[:3,3] = RY, tY.flatten()
     Z[:3,:3], Z[:3,3] = RZ, tZ.flatten()
+
+    print("RX det:", np.linalg.det(RX))
+    print("RY det:", np.linalg.det(RY))
+    print("RZ det:", np.linalg.det(RZ))
     
     return X, Y, Z
 
@@ -178,6 +183,7 @@ def solve_axb_ycz_iterative(samples, X0, Y0, Z0):
         Z = vec2mat(p[12:18])
         
         errs = []
+
         for s in samples:
             A, B, C = s['A'], s['B'], s['C']
             # 仅取前 3 行 (忽略齐次项末尾的 [0,0,0,1])
@@ -198,19 +204,45 @@ def solve_axb_ycz_iterative(samples, X0, Y0, Z0):
 
 # ================== 仿真与数据采集模块 ==================
 
-def get_4x4_mat(model, data, site_name):
+def add_noise_to_matrix(T, rot_noise_deg=0.1, trans_noise_mm=0.5):
+    """模拟真实机械臂的读取误差"""
+    T_noisy = T.copy()
+    
+    # 注入平移噪声 (例如 +/- 0.5 mm)
+    noise_t = np.random.uniform(-trans_noise_mm/1000.0, trans_noise_mm/1000.0, 3)
+    T_noisy[:3, 3] += noise_t
+    
+    # 注入旋转噪声 (例如 +/- 0.1 度)
+    noise_r_vec = np.random.uniform(-np.radians(rot_noise_deg), np.radians(rot_noise_deg), 3)
+    R_noise = R.from_rotvec(noise_r_vec).as_matrix()
+    T_noisy[:3, :3] = R_noise @ T_noisy[:3, :3]
+    
+    return T_noisy
+
+def get_site_4x4_mat(model, data, site_name):
     site_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, site_name)
     mat = np.eye(4)
     mat[:3, :3] = data.site(site_id).xmat.reshape(3, 3)
     mat[:3, 3] = data.site(site_id).xpos
     return mat
 
+def get_body_4x4_mat(model, data, body_name):
+    """专门用来获取 body (连杆/基座) 的 4x4 矩阵"""
+    body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, body_name)
+    if body_id == -1:
+        raise ValueError(f"❌ 找不到名为 '{body_name}' 的 body，请检查 XML 文件！")
+        
+    mat = np.eye(4)
+    mat[:3, :3] = data.body(body_id).xmat.reshape(3, 3)
+    mat[:3, 3] = data.body(body_id).xpos
+    return mat
+
 def print_current_status(model, data, q1_idx, q2_idx):
     q1 = data.qpos[q1_idx]
     q2 = data.qpos[q2_idx]
     
-    tcp1_mat = get_4x4_mat(model, data, "tcp")
-    tcp2_mat = get_4x4_mat(model, data, "tcp_2")
+    tcp1_mat = get_site_4x4_mat(model, data, "tcp")
+    tcp2_mat = get_site_4x4_mat(model, data, "tcp_2")
     
     tcp1_pos = tcp1_mat[:3, 3]
     tcp1_euler = R.from_matrix(tcp1_mat[:3, :3]).as_euler('xyz', degrees=True)
@@ -284,10 +316,11 @@ def verify_calibration_results(samples, X, Y, Z, model, data):
         T_cam_world[:3, 3] = data.cam(cam_id).xpos
         
         site_tcp1 = "tcp"
-        T_tcp1_world = get_4x4_mat(model, data, site_tcp1)
+        T_tcp1_world = get_site_4x4_mat(model, data, site_tcp1)
 
         # X_gt = (TCP_world)^-1 * Cam_world
         X_gt = np.linalg.inv(T_tcp1_world) @ T_cam_world
+        print("    ▶ MuJoCo 上帝视角真值 X_gt (TCP1 -> Camera):\n", np.round(X_gt, 8))
         
         X_t_err = np.linalg.norm(X[:3, 3] - X_gt[:3, 3]) * 1000
         R_err_X = X[:3, :3] @ X_gt[:3, :3].T
@@ -298,18 +331,23 @@ def verify_calibration_results(samples, X, Y, Z, model, data):
     except Exception as e:
         print("    (无法获取 X 的真值，请检查 site 名称是否对应)")
 
-    # 【获取 Y 的真值 (理论上应为单位矩阵 I)】
-    # 在您的代码中，A 和 C 都是通过 get_4x4_mat 直接获取的。
-    # 而 get_4x4_mat 返回的是相对于 MuJoCo World 坐标系的绝对位姿！
-    # 也就是说 A = T_world->tcp1, C = T_world->tcp2
-    # 所以 A*X*B 和 C*Z 算出来的都是标定板在 World 下的位姿。
-    # 根据 AXB = YCZ，此时的 Y 矩阵描述的是 World -> World 的转换。
-    # 因此，您的 Y 矩阵在理论上（Ground Truth）必须是一个绝对的单位矩阵 np.eye(4)！
-    Y_gt = np.eye(4)
-    Y_t_err = np.linalg.norm(Y[:3, 3] - Y_gt[:3, 3]) * 1000
-    R_err_Y = Y[:3, :3] @ Y_gt[:3, :3].T
-    Y_r_err = np.rad2deg(np.linalg.norm(R.from_matrix(R_err_Y).as_rotvec()))
-    print(f"    ▶ 基座矩阵 Y 平移误差: {Y_t_err:.3f} mm, 旋转误差: {Y_r_err:.4f} °")
+
+    # 【获取 Y 的真值 (Base1 -> Base2)】
+    try:
+        T_world_base1 = get_body_4x4_mat(model, data, "base")
+        T_world_base2 = get_body_4x4_mat(model, data, "base_2")
+        
+        # Y_gt = (World -> Base1)^-1 * (World -> Base2) = Base1 -> Base2
+        Y_gt = np.linalg.inv(T_world_base1) @ T_world_base2
+        
+        Y_t_err = np.linalg.norm(Y[:3, 3] - Y_gt[:3, 3]) * 1000
+        R_err_Y = Y[:3, :3] @ Y_gt[:3, :3].T
+        Y_r_err = np.rad2deg(np.linalg.norm(R.from_matrix(R_err_Y).as_rotvec()))
+        print(f"    ▶ 基座矩阵 Y 平移误差: {Y_t_err:.3f} mm, 旋转误差: {Y_r_err:.4f} °")
+        
+    except Exception as e:
+        print("    (无法获取 Y 的真值，请检查基座 site 名称是否对应)")    
+
 
 
 
@@ -321,20 +359,22 @@ HOME_QPOS_1 = np.array([-1.63, -2.07, 2.01, -3.14, -1.57, 0])
 HOME_QPOS_2 = np.array([1.19, -1.51, 1.51, -3.14, -1.57, 0])
 
 def main():
+ 
     model = mujoco.MjModel.from_xml_path(XML_PATH)
     data = mujoco.MjData(model)
 
     width, height = 640, 480
     vision = VisionModule(width, height, fovy=50) 
     renderer = mujoco.Renderer(model, height, width)
-
+    
+    # 图像记录
     samples = []
     start_collecting = False 
 
     q1_idx = [mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, f"shoulder_pan_joint") + i for i in range(6)]
     q2_idx = [mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, f"shoulder_pan_joint_2") + i for i in range(6)]
 
-    # 1. 启动时的初始关节赋值
+    # 启动时的初始关节赋值
     data.qpos[q1_idx] = HOME_QPOS_1
     data.qpos[q2_idx] = HOME_QPOS_2
     
@@ -354,165 +394,233 @@ def main():
     print("   [q] - 提前结束采集 / 退出程序")
     print("===============================================================")
 
-
+    # 检测并纠正180 度翻转的二义性
+    flip_count = 0
     # 在进入循环前，定义一个锚点旋转矩阵
-    anchor_R_b = None
+    anchor_R_cv = None
 
-    with mujoco.viewer.launch_passive(model, data) as viewer:
-        while len(samples) < N_SAMPLES and viewer.is_running():
-            
-            if not start_collecting:
-                # ====== 状态 1：正常物理运行状态 ======
-                # 为了配合相机的视觉处理延时（约30ms），每次循环让物理引擎多跑几步
-                # 这样保证仿真时间流逝正常，机器人是受物理法则控制的（可以被鼠标拖拽）
-                for _ in range(15):
-                    mujoco.mj_step(model, data)
-                
-                renderer.update_scene(data, "wrist_camera")
-                img_rgb = renderer.render()
-                found, rvec, tvec, img_draw = vision.detect_and_pose(img_rgb)
-                
-                status_color = (0, 255, 0) if found else (0, 0, 255)
-                status_text = "Status: PHYSICS RUNNING (Target Found)" if found else "Status: PHYSICS RUNNING (Target Lost!)"
-                cv2.putText(img_draw, status_text, (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, status_color, 2)
-                cv2.putText(img_draw, "Drag robot with [Ctrl + Right Click]", (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 165, 255), 2)
-                cv2.imshow("Camera View", img_draw)
-                
-                key = cv2.waitKey(1) & 0xFF
-                if key == ord('c'):
-                    if not found:
-                        print("\n⚠ 警告: 当前未识别到标定板，请继续调整姿态！")
-                    else:
-                        start_collecting = True
-                        # 重点：按下C键的一瞬间，记录当前的实际物理关节位置
-                        base_qpos_1 = np.copy(data.qpos[q1_idx])
-                        base_qpos_2 = np.copy(data.qpos[q2_idx])
-                        print("\n▶ 已锁定当前姿态！物理引擎已剥离，开始纯运动学自动扰动采集数据...")
-                        
-                elif key == ord('p'):
-                    print_current_status(model, data, q1_idx, q2_idx)
-                elif key == ord('q'):
-                    print("\n▶ 用户手动终止程序。")
-                    break
+    with DoubleLogger(log_dir="calibration_logs") as logger:
+        with mujoco.viewer.launch_passive(model, data) as viewer:
 
-            else:
-                # ====== 状态 2：自动扰动采集 ======
-                # 重点：此时不再调用 mj_step()，完全剥离物理法则（没有重力，无视碰撞）
-                # 我们直接“瞬移”关节进行纯运动学的纯净采样，避免物理回弹报错
-                q1 = base_qpos_1 + np.random.uniform(-0.6, 0.6, 6)
-                q2 = base_qpos_2 + np.random.uniform(-0.6, 0.6, 6)
+            while len(samples) < N_SAMPLES and viewer.is_running():
                 
-                data.qpos[q1_idx] = q1
-                data.qpos[q2_idx] = q2
-                mujoco.mj_forward(model, data)  # 仅更新运动学正解和相机位置
-                
-                renderer.update_scene(data, "wrist_camera")
-                img_rgb = renderer.render()
-                found, rvec, tvec, img_draw = vision.detect_and_pose(img_rgb)
-                
-                if found:
-                    R_cv, _ = cv2.Rodrigues(rvec)
-                    t_cv = tvec.flatten()
-
-                    # ==================================================
-                    # 💡 核心修复 1: OpenCV -> MuJoCo/OpenGL 坐标系翻转
-                    # 绕 X 轴旋转 180 度，对齐相机的 Z 轴和 Y 轴
-                    # ==================================================
-                    T_cv2gl = np.array([
-                        [1,  0,  0],
-                        [0, -1,  0],
-                        [0,  0, -1]
-                    ])
-                    R_b = T_cv2gl @ R_cv
-
-                    # =======================================================
-                    # 💡 核心修复 2：利用机械臂运动学先验，消除 180 度翻转歧义
-                    # =======================================================
-                    if anchor_R_b is None:
-                        # 记录第一帧作为绝对锚点
-                        anchor_R_b = R_b.copy()
-                    else:
-                        # 提取锚点和当前的 X 轴分量 (旋转矩阵的第一列)
-                        x_axis_anchor = anchor_R_b[:, 0]
-                        x_axis_current = R_b[:, 0]
-                        
-                        # 计算点乘（投影夹角余弦），判断是否超过 90 度
-                        if np.dot(x_axis_anchor, x_axis_current) < 0:
-                            # print(" ⚠️ 检测到 OpenCV 180 度翻转！已自动纠正。")
-                            # 绕标定板自身 Z 轴旋转 180 度的修复矩阵
-                            R_flip_180 = np.array([
-                                [-1,  0,  0],
-                                [ 0, -1,  0],
-                                [ 0,  0,  1]
-                            ])
-                            # 强行翻转回来
-                            R_b = R_b @ R_flip_180
-
-                    t_b = T_cv2gl @ t_cv
-
-                    B = np.eye(4)
-                    B[:3, :3] = R_b
-                    B[:3, 3] = t_b
+                if not start_collecting:
+                    # ====== 正常物理运行状态 ======
+                    # 为了配合相机的视觉处理延时（约30ms），每次循环让物理引擎多跑几步
+                    # 这样保证仿真时间流逝正常，机器人是受物理法则控制的（可以被鼠标拖拽）
+                    for _ in range(15):
+                        mujoco.mj_step(model, data)
                     
-                    samples.append({
-                        'A': get_4x4_mat(model, data, "tcp"),      
-                        'B': B,                                    
-                        'C': get_4x4_mat(model, data, "tcp_2")     
-                    })
+                    renderer.update_scene(data, "wrist_camera")
+                    img_rgb = renderer.render()
+                    found, rvec, tvec, img_draw = vision.detect_and_pose(img_rgb)
                     
-                    cv2.putText(img_draw, f"Collecting: {len(samples)}/{N_SAMPLES}", (20, 30), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
-                    print(f"进度: {len(samples)}/{N_SAMPLES}", end='\r')
+                    status_color = (0, 255, 0) if found else (0, 0, 255)
+                    status_text = "Status: PHYSICS RUNNING (Target Found)" if found else "Status: PHYSICS RUNNING (Target Lost!)"
+                    cv2.putText(img_draw, status_text, (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, status_color, 2)
+                    cv2.putText(img_draw, "Drag robot with [Ctrl + Right Click]", (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 165, 255), 2)
+                    cv2.imshow("Camera View", img_draw)
+                    
+                    key = cv2.waitKey(1) & 0xFF
+                    if key == ord('c'):
+                        if not found:
+                            print("\n⚠ 警告: 当前未识别到标定板，请继续调整姿态！")
+                        else:
+                            start_collecting = True
+                            # 重点：按下C键的一瞬间，记录当前的实际物理关节位置
+                            base_qpos_1 = np.copy(data.qpos[q1_idx])
+                            base_qpos_2 = np.copy(data.qpos[q2_idx])
+                            print("\n▶ 已锁定当前姿态！物理引擎已剥离，开始纯运动学自动扰动采集数据...")
+                            
+                    elif key == ord('p'):
+                        print_current_status(model, data, q1_idx, q2_idx)
+
+                    elif key == ord('q'):
+                        print("\n▶ 用户手动终止程序。")
+                        break
+
                 else:
-                    cv2.putText(img_draw, "Target Lost! Retrying...", (20, 30), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+
+                    # ====== 自动扰动采集 ======
+                    # 此时不再调用 mj_step()，完全剥离物理法则（没有重力，无视碰撞）
+                    # 直接“瞬移”关节进行纯运动学的纯净采样，避免物理回弹报错
+                    q1 = base_qpos_1 + np.random.uniform(-0.6, 0.6, 6)
+                    q2 = base_qpos_2 + np.random.uniform(-0.6, 0.6, 6)
+                    
+                    data.qpos[q1_idx] = q1
+                    data.qpos[q2_idx] = q2
+                    mujoco.mj_forward(model, data)  # 仅更新运动学正解和相机位置
+                    
+                    renderer.update_scene(data, "wrist_camera")
+                    img_rgb = renderer.render()
+                    found, rvec, tvec, img_draw = vision.detect_and_pose(img_rgb)
+                    
+                    if found:
+
+                        # 构造保存路径（建议在 main 开头定义好 IMAGE_SAVE_DIR）
+                        # 假设你已经创建了文件夹：os.makedirs("calibration_logs", exist_ok=True)
+                        sample_idx = len(samples) + 1
+                        save_path = f"calibration_logs/samples/sample_{sample_idx:03d}.png"
+                        
+                        # 获取带有角点和坐标轴标注的图像
+                        # 注意：你的 detect_and_pose 返回的 img_bgr 已经是 BGR 格式了
+                        # 直接使用 cv2.imwrite 即可，不需要再转换颜色空间
+                        cv2.imwrite(save_path, img_draw)
+
+                        R_cv, _ = cv2.Rodrigues(rvec)
+                        t_cv = tvec.flatten()
+
+                         # =======================================================
+                        # 💡 纯 OpenCV 坐标系下的 180 度翻转诊断与修复
+                        # =======================================================
+                        if anchor_R_cv is None:
+                            # 记录第一帧的旋转作为锚点
+                            anchor_R_cv = R_cv.copy()
+                        else:
+                            # 提取锚点和当前的 X 轴分量 (OpenCV 下第一列是 X 轴)
+                            x_axis_anchor = anchor_R_cv[:, 0]
+                            x_axis_current = R_cv[:, 0]
+                            
+                            # 如果夹角超过 90 度，说明发生了 180 度翻转
+                            if np.dot(x_axis_anchor, x_axis_current) < 0:
+                                flip_count += 1
+                                
+                                # OpenCV 坐标系下的翻转矩阵 (绕 Z 轴转 180 度)
+                                R_flip_180_cv = np.array([
+                                    [-1,  0,  0],
+                                    [ 0, -1,  0],
+                                    [ 0,  0,  1]
+                                ])
+
+                                # 计算物理偏移向量 (标定板的长和宽)
+                                offset_cv = np.array([
+                                    (vision.pattern_size[0] - 1) * vision.square_size,
+                                    (vision.pattern_size[1] - 1) * vision.square_size,
+                                    0.0
+                                ])
+
+                                # 💡 核心修复：必须使用【未翻转前的 R_cv】来计算平移！
+                                # 把原点从错误的“右下角”挪回“左上角”
+                                t_cv_corrected = t_cv + R_cv @ offset_cv
+                                # 然后再翻转坐标轴的方向
+                                R_cv_corrected = R_cv @ R_flip_180_cv
+
+                                # 将修复后的结果转回向量格式，准备画图
+                                rvec_corrected, _ = cv2.Rodrigues(R_cv_corrected)
+                                tvec_corrected = t_cv_corrected.reshape(3, 1)
+
+                                # 画图验证 (拿干净的 RGB 转 BGR)
+                                img_corrected_draw = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
+                                
+                                # ⚠️ 核心修复：接住 drawFrameAxes 的返回值 img_corrected_draw
+                                img_corrected_draw = cv2.drawFrameAxes(
+                                    img_corrected_draw, 
+                                    vision.K, 
+                                    vision.dist_coeffs, 
+                                    rvec_corrected, 
+                                    tvec_corrected, 
+                                    0.1,  # 坐标轴长度 0.1 米
+                                    3     # 线条粗细
+                                )
+
+                                cv2.putText(img_corrected_draw, "FIXED: 180 Deg Flip Corrected!", 
+                                            (20, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+
+                                # 保存翻转修复图
+                                sample_idx = len(samples) + 1
+                                flip_path = os.path.join("calibration_logs", "samples", f"sample_{sample_idx:03d}_r.png")
+                                cv2.imwrite(flip_path, img_corrected_draw)
+
+                                # 覆盖原来的变量，让下游的 MuJoCo 计算拿到的都是正确数据
+                                R_cv = R_cv_corrected
+                                t_cv = t_cv_corrected
+                                
+                        # ==================================================
+                        # OpenCV -> MuJoCo/OpenGL 坐标系翻转 (转给机器人 B 矩阵)
+                        # ==================================================
+                        T_cv2gl = np.array([
+                            [1,  0,  0],
+                            [0, -1,  0],
+                            [0,  0, -1]
+                        ])
+                        R_b = T_cv2gl @ R_cv
+                        t_b = T_cv2gl @ t_cv
+
+                        B = np.eye(4)
+                        B[:3, :3] = R_b
+                        B[:3, 3] = t_b
+
+                        T_world_base1 = get_body_4x4_mat(model, data, "base")
+                        T_world_base2 = get_body_4x4_mat(model, data, "base_2")
+
+                        T_world_tcp1 = get_site_4x4_mat(model, data, "tcp")
+                        T_world_tcp2 = get_site_4x4_mat(model, data, "tcp_2")
+
+                        # 计算 TCP 相对于自己基座的坐标
+                        A_real = np.linalg.inv(T_world_base1) @ T_world_tcp1
+                        C_real = np.linalg.inv(T_world_base2) @ T_world_tcp2
+
+                        samples.append({
+                            'A': A_real,      
+                            'B': B,                                    
+                            'C': C_real     
+                        })
+                        
+                        cv2.putText(img_draw, f"Collecting: {len(samples)}/{N_SAMPLES}", (20, 30), 
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+                        print(f"进度: {len(samples)}/{N_SAMPLES}", end='\r')
+                    else:
+                        cv2.putText(img_draw, "Target Lost! Retrying...", (20, 30), 
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+                    
+                    cv2.imshow("Camera View", img_draw)
+                    
+                    key = cv2.waitKey(1) & 0xFF
+                    if key == ord('p'):
+                        print_current_status(model, data, q1_idx, q2_idx)
+                    elif key == ord('q'):
+                        print("\n▶ 用户手动终止程序。")
+                        break
                 
-                cv2.imshow("Camera View", img_draw)
-                
-                key = cv2.waitKey(1) & 0xFF
-                if key == ord('p'):
-                    print_current_status(model, data, q1_idx, q2_idx)
-                elif key == ord('q'):
-                    print("\n▶ 用户手动终止程序。")
-                    break
-            
-            viewer.sync()
-            
-    cv2.destroyAllWindows()
-    
-    if len(samples) < 5:
-        print("\n采集的数据太少，无法计算标定矩阵。")
-        return
+                viewer.sync()
 
-    print("\n采集结束，准备解算...")
-    X, Y, Z = solve_axb_ycz_closed_form(samples)
-    
-    print("\n================ 标定结果 ================")
-    print("X (手眼矩阵 Robot1 Flange -> Camera):\n", np.round(X, 5))
-    print("-" * 40)
-    print("Y (基座转换 Robot1 Base -> Robot2 Base):\n", np.round(Y, 5))
-    print("-" * 40)
-    print("Z (抓取矩阵 Robot2 Flange -> Board):\n", np.round(Z, 5))
-    print("==========================================")
+        # 最后关闭所有 OpenCV 窗口
+        cv2.destroyAllWindows()
 
-    print("\n================ 1. 闭式解 (Closed Form) ================")
-    X_cf, Y_cf, Z_cf = solve_axb_ycz_closed_form(samples)
-    print("X 平移:", X_cf[:3, 3])
-    print("Y 平移:", Y_cf[:3, 3])
-    print("Z 平移:", Z_cf[:3, 3])
-    
-    print("\n================ 2. 迭代解 (Iterative Optimization) ================")
-    X_opt, Y_opt, Z_opt = solve_axb_ycz_iterative(samples, X_cf, Y_cf, Z_cf)
-    
-    print("最优 X (手眼矩阵 Robot1 Flange -> Camera):\n", np.round(X_opt, 5))
-    print("-" * 40)
-    print("最优 Y (基座转换 Robot1 Base -> Robot2 Base):\n", np.round(Y_opt, 5))
-    print("-" * 40)
-    print("最优 Z (抓取矩阵 Robot2 Flange -> Board):\n", np.round(Z_opt, 5))
-    print("================================================================")
 
-    # 验证时传入迭代优化后的 X, Y, Z
-    verify_calibration_results(samples, X_opt, Y_opt, Z_opt, model, data)
+        # ====== 采集结束，开始解算 ======
+        if len(samples) < 5:
+            print("\n采集的数据太少，无法计算标定矩阵。")
+            return
+
+        print(f"\n✅ 采集结束，共 {N_SAMPLES} 组数据。")
+        print(f"🔧 [视觉诊断] 自动触发 180 度翻转纠正次数: {flip_count} 次")
+        
+        print("\n================ 1. 闭式解 (Closed Form) ================")
+
+        X_cf, Y_cf, Z_cf = solve_axb_ycz_closed_form(samples)
+        print("X (手眼矩阵 Robot1 Flange -> Camera):\n", np.round(X_cf, 8))
+        print("-" * 40)
+        print("Y (基座转换 Robot1 Base -> Robot2 Base):\n", np.round(Y_cf, 8))
+        print("-" * 40)
+        print("Z (抓取矩阵 Robot2 Flange -> Board):\n", np.round(Z_cf, 8))
+        
+        print("\n================ 2. 迭代解 (Iterative Optimization) ================")
+
+        X_opt, Y_opt, Z_opt = solve_axb_ycz_iterative(samples, X_cf, Y_cf, Z_cf)
+        print("最优 X (手眼矩阵 Robot1 Flange -> Camera):\n", np.round(X_opt, 8))
+        print("-" * 40)
+        print("最优 Y (基座转换 Robot1 Base -> Robot2 Base):\n", np.round(Y_opt, 8))
+        print("-" * 40)
+        print("最优 Z (抓取矩阵 Robot2 Flange -> Board):\n", np.round(Z_opt, 8))
+        print("================================================================")
+
+        # 验证时传入迭代优化后的 X, Y, Z
+        verify_calibration_results(samples, X_opt, Y_opt, Z_opt, model, data)
+
+        # 调用类方法，一键保存脱机数据
+        logger.save_calibra_raw_data_offline(samples, X_opt, Y_opt, Z_opt)
+
 
 if __name__ == "__main__":
     main()

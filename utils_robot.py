@@ -49,6 +49,17 @@ def get_joint_indices(model):
             indices.append(model.jnt_dofadr[j_id])
     return np.array(indices, dtype=np.int32)
 
+def get_body_4x4_mat(model, data, body_name):
+    """
+    获取某个 body（如机器人的基座 base_link）在 MuJoCo 世界坐标系下的绝对位姿
+    """
+    body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, body_name)
+    mat = np.eye(4)
+    mat[:3, :3] = data.body(body_id).xmat.reshape(3, 3)
+    mat[:3, 3] = data.body(body_id).xpos
+    return mat
+
+
 def solve_ik(model, data, target_pos, target_quat, damping=1e-2):
     """
     计算 6D 逆运动学

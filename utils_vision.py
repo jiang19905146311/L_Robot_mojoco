@@ -27,7 +27,8 @@ class VisionModule:
             [0, f, height / 2],
             [0, 0, 1]
         ])
-        # 仿真相机无畸变，全设置为0
+
+        # 仿真相机无“鱼眼”或“桶形”畸变，全设置为0
         self.dist_coeffs = np.zeros(5) 
 
         # --- 棋盘格配置 ---
@@ -105,10 +106,36 @@ class VisionModule:
         ex = current_center[0] - image_center[0]
         ey = current_center[1] - image_center[1]
         return ex, ey
+    
+    def init_kalman(self):
+        '''
+        初始化卡尔曼滤波器，用于平滑位姿估计结果，减少视觉检测的噪声影响。
+        状态量包括位置和速度，共12维；测量量只有位置和角度，共6维。
+        '''
+        # 状态量有6个：x, y, z, roll, pitch, yaw
+        # 加上它们的速度，共12个变量
+        self.kf = cv2.KalmanFilter(12, 6) 
+        
+        # 状态转移矩阵 A (假设匀速运动)
+        self.kf.transitionMatrix = np.eye(12, dtype=np.float32)
+        dt = 1/30.0  # 假设你的相机是 30 FPS
+        for i in range(6):
+            self.kf.transitionMatrix[i, i+6] = dt
+            
+        # 测量矩阵 H (我们只能直接观测到位置和角度，观测不到速度)
+        self.kf.measurementMatrix = np.zeros((6, 12), np.float32)
+        for i in range(6):
+            self.kf.measurementMatrix[i, i] = 1
+            
+        # 过程噪声 Q (相信预测多一点，还是相信模型多一点)
+        self.kf.processNoiseCov = np.eye(12, dtype=np.float32) * 1e-4
+        
+        # 测量噪声 R (视觉检测的误差权重，越大越平滑，但延迟越高)
+        self.kf.measurementNoiseCov = np.eye(6, dtype=np.float32) * 1e-2
 
     def detect_and_pose(self, img_rgb):
         """
-        返回:
+        位姿估计
             found: 是否找到
             rvec, tvec: 标定板相对于相机的位姿
             img_draw: 画了轴的图
@@ -120,12 +147,18 @@ class VisionModule:
         # 转成单通道灰度图寻找角点
         img_gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
 
-        # 在图中寻找棋盘格角点
-        # found 是布尔值（找到了吗？）；corners 是检测到的 2D 像素坐标
-        found, corners = cv2.findChessboardCorners(img_gray, self.pattern_size, None)
+        # 初始化返回值：即使没找到也返回统一格式，防止外部解包报错
+        success = False
+        rvec, tvec, R_mat = None, None, None
+        img_points = None  # 存储 2D 点
+        obj_points = None  # 存储 3D 点
 
-        # 先初始化结果，万一没找到就返回空
-        rvec, tvec = None, None
+        # 在图中寻找棋盘格角点，使用增强型标志位
+        # CALIB_CB_ADAPTIVE_THRESH: 自适应二值化，应对光照不均
+        # CALIB_CB_FAST_CHECK: 快速检查，如果没有棋盘格则迅速跳过
+        flags = cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_FAST_CHECK + cv2.CALIB_CB_NORMALIZE_IMAGE
+        # found 是布尔值；corners 是检测到的 2D 像素坐标
+        found, corners = cv2.findChessboardCorners(img_gray, self.pattern_size, flags)
         
         if found:
             # 亚像素优化
@@ -133,18 +166,67 @@ class VisionModule:
             criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
             corners2 = cv2.cornerSubPix(img_gray, corners, (11, 11), (-1, -1), criteria)
 
+            # 保存 2D 和 3D 对应点
+            # corners2 的形状通常是 (N, 1, 2)，为了方便后续计算，我们 reshape 成 (N, 2)
+            img_points = corners2.reshape(-1, 2)
+            obj_points = self.objp.reshape(-1, 3)
+
             # PnP (Perspective-n-Point) 解算
             # 根据已知的 3D 点 (objp) 和对应的 2D 像素点 (corners2)
             # 结合相机内参 (K)，算出标定板相对于相机的 3D 变换
             # ret: 求解是否成功；rvec: 旋转向量；tvec: 平移向量（即 xyz 坐标）
             ret, rvec, tvec = cv2.solvePnP(self.objp, corners2, self.K, self.dist_coeffs)
-
-            # 在图上把找出来的角点连成线画出来
-            cv2.drawChessboardCorners(img_bgr, self.pattern_size, corners2, found)
+            # ret, rvec, tvec, inliers= cv2.solvePnPRansac(self.objp, corners2, self.K, self.dist_coeffs,reprojectionError=2.0, iterationsCount=100)
 
             if ret:
-                # 绘制 3D 坐标轴（长度 0.1m）。红色是 X，绿色是 Y，蓝色是 Z
-                img_bgr = cv2.drawFrameAxes(img_bgr, self.K, self.dist_coeffs, rvec, tvec, 0.1)
+                success = True
+
+                # 转换旋转向量为旋转矩阵 (3x3)
+                # 在控制机械臂时，旋转矩阵或四元数比旋转向量更好用
+                R_mat, _ = cv2.Rodrigues(rvec)
+
+                # 在图上把找出来的角点连成线画出来
+                cv2.drawChessboardCorners(img_bgr, self.pattern_size, corners2, found)
+                # 绘制 3D 坐标轴并添加文字标注位置信息（长度 0.1m）。红色是 X，绿色是 Y，蓝色是 Z
+                cv2.drawFrameAxes(img_bgr, self.K, self.dist_coeffs, rvec, tvec, 0.1)
+                
+                # 在图上实时打印距离信息 (单位: m)
+                dist_text = f"Pos: x={tvec[0][0]:.2f} y={tvec[1][0]:.2f} z={tvec[2][0]:.2f}"
+                cv2.putText(img_bgr, dist_text, (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
         # 返回：是否成功、旋转向量、平移向量、画好图的图像
-        return found, rvec, tvec, img_bgr
+        return success,found, rvec, tvec, R_mat, img_points, obj_points, R_mat, img_bgr
+
+    def detect_and_pose_with_kalman(self, img_rgb):
+        # --- 步骤 1: 预测 (Prediction) ---
+        # 即使没看到目标，卡尔曼也会给出一个预测值
+        prediction = self.kf.predict()
+        
+        # 执行你之前的检测逻辑...
+        success, rvec, tvec, R_mat, img_pts, obj_pts, img_draw = self.detect_and_pose_v2(img_rgb)
+        
+        if success:
+            # --- 步骤 2: 更新 (Update) ---
+            # 将旋转向量 rvec 转为欧拉角，方便滤波（也可直接滤 rvec）
+            # 这里为了简单，直接构造测量向量 [x, y, z, r, p, y]
+            measurement = np.array([
+                tvec[0], tvec[1], tvec[2], 
+                rvec[0], rvec[1], rvec[2]
+            ], dtype=np.float32).reshape(6, 1)
+            
+            # 修正滤波器
+            estimated = self.kf.correct(measurement)
+        else:
+            # 如果这帧丢了，直接用预测值维持状态
+            estimated = prediction
+
+        # --- 步骤 3: 提取平滑后的位姿 ---
+        smooth_tvec = estimated[0:3].reshape(3, 1)
+        smooth_rvec = estimated[3:6].reshape(3, 1)
+        
+        # 用平滑后的位姿重新生成旋转矩阵或画图
+        smooth_R, _ = cv2.Rodrigues(smooth_rvec)
+        
+        return success, smooth_rvec, smooth_tvec, smooth_R, img_draw
+
+

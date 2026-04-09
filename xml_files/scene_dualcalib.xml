@@ -124,12 +124,12 @@
                   <geom class="eef_collision" pos="0 0.08 0" quat="1 1 0 0" size="0.045 0.02"/>
                   
                   <!-- Robot 1 带着相机 -->
-                  <camera name="wrist_camera" pos="0 0.1 0.02" quat="0.707 0.707 0 0" fovy="50"/>
+                  <camera name="wrist_camera" pos="0 0.1 0" quat="0.707 0.707 0 0" fovy="50"/>
                   
                   <!-- 夹爪 (简化版) -->
                   <body name="gripper_base" pos="0 0.0823 0" quat="-0.707 0.707 0 0">
                     <geom type="cylinder" size="0.04 0.04" rgba="0.1 0.1 0.1 1"/>
-                    <site name="tcp" pos="0 0 0.06" size="0.005" rgba="0 1 0 0.5" group="0"/>
+                    <site name="tcp" pos="0 0 0" size="0.005" rgba="0 1 0 0.5" group="0"/>
                   </body>
                 </body>
               </body>
