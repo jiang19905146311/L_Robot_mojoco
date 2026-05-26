@@ -1,7 +1,7 @@
 <!-- dual_ur5.xml -->
 <mujoco model="dual_ur5_calibration">
   <option timestep="0.002" integrator="implicitfast"/>
-  <compiler angle="radian" meshdir="assets" autolimits="true"/>
+  <compiler angle="radian" meshdir="ur5" autolimits="true"/>
 
   <!-- 引用基础设置 (复用 ur5.xml 中的 defaults 和 assets) -->
   <!-- 注意：为了简单起见，这里假设你已经把 ur5.xml 中的 asset 和 default 复制过来了，

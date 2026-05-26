@@ -192,6 +192,8 @@ def solve_axb_ycz_iterative(samples, X0, Y0, Z0):
         return np.array(errs)
 
     # 运行非线性最小二乘优化
+    # 原论文在 Section II-C 提出将问题转化为凸优化并使用 SVRG（随机方差缩减梯度）求解。
+    # 这里替换为“李代数表示法 + Levenberg-Marquardt (LM) 算法”
     res = scipy.optimize.least_squares(residual, p0, args=(samples,), method='lm', max_nfev=2000)
     
     X_opt = vec2mat(res.x[0:6])
@@ -413,17 +415,21 @@ def main():
                     
                     renderer.update_scene(data, "wrist_camera")
                     img_rgb = renderer.render()
-                    found, rvec, tvec, img_draw = vision.detect_and_pose(img_rgb)
-                    
-                    status_color = (0, 255, 0) if found else (0, 0, 255)
-                    status_text = "Status: PHYSICS RUNNING (Target Found)" if found else "Status: PHYSICS RUNNING (Target Lost!)"
+
+                    # 从字典中解析需要的数据
+                    vis_res = vision.detect_and_pose(img_rgb)
+                    is_success = vis_res["success"]
+                    img_draw = vis_res["img_bgr"]
+
+                    status_color = (0, 255, 0) if is_success else (0, 0, 255)
+                    status_text = "Status: PHYSICS RUNNING (Target Found)" if is_success else "Status: PHYSICS RUNNING (Target Lost!)"
                     cv2.putText(img_draw, status_text, (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, status_color, 2)
                     cv2.putText(img_draw, "Drag robot with [Ctrl + Right Click]", (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 165, 255), 2)
                     cv2.imshow("Camera View", img_draw)
                     
                     key = cv2.waitKey(1) & 0xFF
                     if key == ord('c'):
-                        if not found:
+                        if not is_success:
                             print("\n⚠ 警告: 当前未识别到标定板，请继续调整姿态！")
                         else:
                             start_collecting = True
@@ -453,10 +459,21 @@ def main():
                     
                     renderer.update_scene(data, "wrist_camera")
                     img_rgb = renderer.render()
-                    found, rvec, tvec, img_draw = vision.detect_and_pose(img_rgb)
-                    
-                    if found:
 
+                    # 从字典中接数据
+                    vis_res = vision.detect_and_pose(img_rgb)
+                    is_success = vis_res["success"]
+                    img_draw = vis_res["img_bgr"]
+                    
+                    if is_success:
+
+                        rvec = vis_res["rvec"]
+                        tvec = vis_res["tvec"]
+
+                        # 数值分析
+                        img_points_for_analysis = vis_res["img_points"]
+                        obj_points_for_analysis = vis_res["obj_points"]
+  
                         # 构造保存路径（建议在 main 开头定义好 IMAGE_SAVE_DIR）
                         # 假设你已经创建了文件夹：os.makedirs("calibration_logs", exist_ok=True)
                         sample_idx = len(samples) + 1

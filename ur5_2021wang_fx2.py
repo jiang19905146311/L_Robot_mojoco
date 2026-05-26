@@ -202,6 +202,84 @@ def solve_axb_ycz_iterative(samples, X0, Y0, Z0):
     return X_opt, Y_opt, Z_opt
 
 
+def solve_axb_ycz_bundle_adjustment(samples, X0, Y0, Z0, K, dist_coeffs):
+    """
+    【创新点核心】基于 2D 像素重投影误差的全局光束法平差 (Bundle Adjustment)
+    跳过 PnP 的中间矩阵 B，实现端到端的物理-像素联合标定！
+    """
+    print("\n🚀 开始执行基于像素重投影误差的 BA 全局优化...")
+    
+    def mat2vec(M):
+        r = R.from_matrix(M[:3, :3]).as_rotvec()
+        return np.hstack((r, M[:3, 3]))
+        
+    def vec2mat(v):
+        M = np.eye(4)
+        M[:3, :3] = R.from_rotvec(v[:3]).as_matrix()
+        M[:3, 3] = v[3:6]
+        return M
+
+    # 初始参数 (18 维向量，由王等人的闭式解提供高质量初始值)
+    p0 = np.hstack((mat2vec(X0), mat2vec(Y0), mat2vec(Z0)))
+
+    # 定义残差函数：计算所有角点的 2D 像素误差
+    def reprojection_residual(p, samples):
+        X = vec2mat(p[0:6])
+        Y = vec2mat(p[6:12])
+        Z = vec2mat(p[12:18])
+        
+        errs = []
+        for s in samples:
+            A, C = s['A'], s['C']
+            img_points_obs = s['img_points'] # 真实的 2D 像素点
+            obj_points = s['obj_points']     # 标定板的 3D 物理点
+            
+            # 核心数学推导：预测相机到标定板的变换矩阵 B_pred
+            # B_pred = (A * X)^-1 * (Y * C * Z)
+            AX = A @ X
+            YCZ = Y @ C @ Z
+            B_pred = np.linalg.inv(AX) @ YCZ
+            
+            # 提取旋转和平移向量，准备投影
+            rvec_pred = R.from_matrix(B_pred[:3, :3]).as_rotvec()
+            tvec_pred = B_pred[:3, 3]
+            
+            # 使用内参 K 将 3D 点投影到像素平面
+            img_points_pred, _ = cv2.projectPoints(
+                obj_points, rvec_pred, tvec_pred, K, dist_coeffs
+            )
+            
+            # 计算像素偏差 (U, V 方向的误差差值)
+            # diff 是一个 1D 数组，包含了该帧图像上所有角点的像素误差
+            diff = (img_points_obs.flatten() - img_points_pred.flatten())
+            errs.extend(diff)
+            
+        return np.array(errs)
+
+    # 运行强鲁棒性的非线性优化
+    # 由于是像素误差（没有前面那个极大的 overflow 问题），这里可以直接放心使用 trf + huber！
+    res = scipy.optimize.least_squares(
+        reprojection_residual, 
+        p0, 
+        args=(samples,), 
+        method='trf', 
+        loss='huber',  # 抗噪核函数，彻底屏蔽残次照片！
+        f_scale=1.0, 
+        max_nfev=2000
+    )
+    
+    X_ba = vec2mat(res.x[0:6])
+    Y_ba = vec2mat(res.x[6:12])
+    Z_ba = vec2mat(res.x[12:18])
+    
+    # 顺便统计一下优化后的平均像素重投影误差
+    final_residuals = reprojection_residual(res.x, samples)
+    mean_pixel_err = np.mean(np.abs(final_residuals))
+    print(f"🎯 BA 优化完成！平均重投影误差: {mean_pixel_err:.4f} 像素")
+    
+    return X_ba, Y_ba, Z_ba
+
+
 
 # ================== 仿真与数据采集模块 ==================
 

@@ -1,7 +1,7 @@
 <!-- 定义MuJoCo模型，模型名称为"dual_ur5_scene"，核心是创建两台面对面的UR5机械臂（左侧带相机、右侧携带棋盘格） -->
 <mujoco model="dual_ur5_scene">
   <!-- 编译器配置：设置模型解析和加载的相关参数 -->
-  <compiler angle="radian" meshdir="assets" autolimits="true"/>
+  <compiler angle="radian" meshdir="ur5" autolimits="true"/>
   <option integrator="implicitfast"/>
 
   <!-- ================= 1. 资源引用 (公用) ================= -->

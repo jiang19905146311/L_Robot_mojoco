@@ -1,0 +1,20 @@
+(mujoco) jt@jt-pc:~/WorkSpace/Mujoco/ur5_simulation$ python ur5_modeling_m.py
+1. Loading nominal parameters from MuJoCo...
+2. Loading collected real robot data...
+   Loaded 50 samples.
+
+--- BEFORE CALIBRATION (Nominal Model) ---
+Mean Position Error: 31.8559 mm  (Max: 48.4796 mm)
+Mean Orientation Error: 0.1692 deg (Max: 0.2311 deg)
+
+3. Running Levenberg-Marquardt Optimization... (This might take a few seconds)
+`xtol` termination condition is satisfied.
+Function evaluations 2431, initial cost 2.8114e-02, final cost 7.7068e-18, first-order optimality 1.62e-08.
+
+--- AFTER CALIBRATION (Optimized Model) ---
+Mean Position Error: 0.000000 mm  (Max: 0.000001 mm)
+Mean Orientation Error: 0.000000 deg (Max: 0.000000 deg)
+
+🎉 Calibration SUCCESSFUL!
+Calibrated error parameters saved to 'optimized_error_params.npy'
+

@@ -1,6 +1,6 @@
 <mujoco model="ur5">
   <!-- 编译器配置：弧度制，网格文件目录，自动计算关节限位 -->
-  <compiler angle="radian" meshdir="assets" autolimits="true"/>
+  <compiler angle="radian" meshdir="ur5" autolimits="true"/>
   
   <!-- 仿真选项：使用快速隐式积分器 -->
   <option integrator="implicitfast"/>

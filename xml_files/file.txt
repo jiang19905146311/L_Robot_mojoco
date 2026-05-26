@@ -1,0 +1,1 @@
+    #<mesh file="camera/Gemini 336 Asm with FOV_V2.0_20241107.STL"/>

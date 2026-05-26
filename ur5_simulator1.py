@@ -17,7 +17,7 @@ IK_DAMPING = 1e-2     # IK 阻尼系数
 STEP_SIZE = 0.5       # IK 更新步长
 
 GRIPPER_OPEN = 0   # 夹爪张开值
-GRIPPER_CLOSE = 0.04   # 夹爪闭合值
+GRIPPER_CLOSE = 0.06   # 夹爪闭合值
 Z_HOVER = 0.15      # 悬停高度
 Z_GRASP = 0.025    # 抓取高度 (需要根据物体高度微调)
 
@@ -52,8 +52,10 @@ def init_scene(model, data):
     data.ctrl[:6] = home_qpos
 
     # 确保夹爪是张开的
+    data.qpos[6] = GRIPPER_OPEN 
+    data.qpos[7] = GRIPPER_OPEN 
     data.ctrl[6] = GRIPPER_OPEN
-    data.ctrl[7] = GRIPPER_OPEN
+
 
     print("机器人初始姿态已设置。")
 
@@ -359,7 +361,7 @@ def run_simulation(model, data):
                 
                 # 4. 应用夹爪控制
                 data.ctrl[6] = gripper_cmd
-                data.ctrl[7] = gripper_cmd
+ 
 
             else:
                 # --- 手动模式 ---

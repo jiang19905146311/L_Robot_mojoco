@@ -1,6 +1,11 @@
+<!--
+UR5机械臂的Mujoco XML模型定义文件。
+包含了UR5机械臂的物理参数、视觉材质、关节定义、执行器配置等。
+-->
+
 <mujoco model="ur5">
   <!-- 编译器配置：弧度制，网格文件目录，自动计算关节限位 -->
-  <compiler angle="radian" meshdir="assets" autolimits="true"/>
+  <compiler angle="radian" meshdir="ur5" autolimits="true"/>
   
   <!-- 仿真选项：使用快速隐式积分器 -->
   <option integrator="implicitfast"/>
@@ -137,6 +142,11 @@
                   <geom material="linkgray" mesh="wrist3" class="visual"/>
                   <geom class="eef_collision" pos="0 0.08 0" quat="1 1 0 0" size="0.045 0.02"/>
                   <site name="attachment_site" pos="0 0.1 0" quat="-1 1 0 0"/>
+                  <!-- 假设工具长 150mm (0.15m) -->
+                  <!-- 0.0823(基础法兰) + 0.150(工具) = 0.2323 -->
+                  <!-- 绕 X 轴旋转 90 度，将 Y 轴朝向变成 Z 轴朝向，以匹配 UR 官方 TCP 坐标系。现在是(x,z,y)-->
+                  <!-- 初始是“0 , 0.0823 , 0 ”-->
+	                <site name="tcp" pos="0.003241 0.083188 -0.023921" quat="0.7071068 -0.7071068 0 0"/>
                 </body>
               </body>
             </body>
@@ -161,4 +171,9 @@
     <key name="home" qpos="-1.5708 -1.5708 1.5708 -1.5708 -1.5708 0" ctrl="-1.5708 -1.5708 1.5708 -1.5708 -1.5708 0"/>
   </keyframe>
 </mujoco>
+
+
+
+
+
 
